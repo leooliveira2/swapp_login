@@ -1,0 +1,134 @@
+import SQLite3
+
+class DBManager {
+    let DBPath: String = "MyDB2.sqlite"
+    private var db: OpaquePointer?
+
+    init() {
+        self.db = self.openDatabase()
+        self.createTable()
+    }
+
+    private func openDatabase() -> OpaquePointer? {
+        let filePath = try! FileManager.default.url(
+            for: .documentDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: false
+        ).appendingPathExtension(self.DBPath)
+
+        var db: OpaquePointer?
+
+        if sqlite3_open(filePath.path, &db) != SQLITE_OK {
+            print("Não foi possível abrir o banco de dados")
+            return nil
+        }
+
+        print("Banco de dados criado com sucesso!")
+        return db
+    }
+
+    private func createTable() -> Bool {
+        guard let db = self.db else { print("hihi"); return false }
+
+        let createTableString = "CREATE TABLE IF NOT EXISTS pessoa5(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, sobrenome TEXT, corDosOlhos TEXT, age INTEGER);"
+
+        var createTableStatement: OpaquePointer?
+
+        if sqlite3_prepare_v2(db, createTableString, -1, &createTableStatement, nil) != SQLITE_OK {
+            print("ERRO NA PREPARACAO DO BANCO")
+            return false
+        }
+        
+        if sqlite3_step(createTableStatement) != SQLITE_DONE {
+            print("Erro na criacao da tabela pessoa")
+            sqlite3_finalize(createTableStatement)
+            return false
+        }
+        
+        print("Sucesso na criacao da tabela pessoa!")
+        sqlite3_finalize(createTableStatement)
+        return true
+    }
+
+    public func insert(name: String, sobrenome: String, corDosOlhos: String, age: Int) -> Bool {
+        let insertStatementString = "INSERT INTO pessoa5(name, sobrenome, corDosOlhos, age) VALUES (?, ?, ?, ?);"
+        var insertStatement: OpaquePointer? = nil
+
+        if sqlite3_prepare_v2(self.db, insertStatementString, -1, &insertStatement, nil) != SQLITE_OK {
+            print("Erro ao preparar o insert")
+            return false
+        }
+        
+        sqlite3_bind_text(insertStatement, 1, (name as NSString).utf8String, -1, nil)
+        sqlite3_bind_text(insertStatement, 2, (sobrenome as NSString).utf8String, -1, nil)
+        sqlite3_bind_text(insertStatement, 3, (corDosOlhos as NSString).utf8String, -1, nil)
+        sqlite3_bind_int(insertStatement, 4, Int32(age))
+
+        if sqlite3_step(insertStatement) != SQLITE_DONE {
+            print("Erro ao fazer insercao!")
+            sqlite3_finalize(insertStatement)
+            return false
+        }
+        
+        print("Insercao feita com sucesso!")
+        sqlite3_finalize(insertStatement)
+        return true
+    }
+
+    func read() {
+        let queryStatementString = "SELECT * FROM pessoa5"
+        var queryStatement: OpaquePointer? = nil
+
+        var pessoas: [Any] = []
+
+        if sqlite3_prepare_v2(self.db, queryStatementString, -1, &queryStatement, nil) != SQLITE_OK {
+            print("Erro ao ler dados do banco!")
+        } else {
+            while sqlite3_step(queryStatement) == SQLITE_ROW {
+                let id = sqlite3_column_int(queryStatement, 0)
+                let nome = String(describing: String(cString: sqlite3_column_text(queryStatement, 1)))
+                let sobrenome = String(describing: String(cString: sqlite3_column_text(queryStatement, 2)))
+                let corDosOlhos = String(describing: String(cString: sqlite3_column_text(queryStatement, 3)))
+                let idade = sqlite3_column_int(queryStatement, 4)
+
+                var listaProvisoria: [Any] = []
+                listaProvisoria.append(id)
+                listaProvisoria.append(nome)
+                listaProvisoria.append(sobrenome)
+                listaProvisoria.append(corDosOlhos)
+                listaProvisoria.append(idade)
+
+                pessoas.append(listaProvisoria)
+            }
+        }
+
+        sqlite3_finalize(queryStatement)
+
+        print(pessoas)
+    }
+
+    public func deleteById(id: Int) -> Bool {
+        let deleteStatementString = "DELETE FROM pessoa5 WHERE id = ?;"
+        var deleteStatement: OpaquePointer? = nil
+
+        if sqlite3_prepare_v2(self.db, deleteStatementString, -1, &deleteStatement, nil) != SQLITE_OK {
+            print("Erro no preparo da remoção")
+            return false
+        }
+        
+        sqlite3_bind_int(deleteStatement, 1, Int32(id))
+        
+        if sqlite3_step(deleteStatement) != SQLITE_DONE {
+            print("Não foi possivel deletar a pessoa de id \(id)")
+            sqlite3_finalize(deleteStatement)
+            return false
+        }
+        
+        print("Sucesso ao deletar pessoa com id \(id)")
+        sqlite3_finalize(deleteStatement)
+        return true
+    }
+
+}
+
